@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Inkwell — Halftone / Manga wallpaper filter</title>
+    <link href="style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- ===================== HALFTONE MODE (fullscreen) ===================== -->
+    <main id="stage">
+      <!-- source decoders: kept in layout (covered by the GL canvas) so they
+           keep producing frames for the shader to sample -->
+      <video id="video" class="decoder" muted loop playsinline autoplay></video>
+      <canvas id="demo" class="decoder" hidden></canvas>
+      <canvas id="glMain" class="gl"></canvas>
+    </main>
+
+    <!-- ===================== MANGA PANEL MODE ===================== -->
+    <div id="page" class="manga-page" aria-hidden="true"></div>
+
+    <!-- Floating status card for HALFTONE mode: clock + HP/MP, manga-styled.
+         In panel mode this same block lives inside the clock panel instead. -->
+    <div id="statusCard" class="paper-tone"></div>
+
+    <!-- status / click-to-start -->
+    <div id="status"></div>
+
+    <!-- hover controls -->
+    <div class="hud">
+      <button data-mode="halftone">Halftone</button>
+      <button data-mode="panel">Panel</button>
+      <button id="liveToggle" title="Live video / static frame (l)">Live</button>
+      <label>Dot <input id="dot" type="range" min="3" max="16" step="1" value="6" /></label>
+      <label>Ink <input id="inkToggle" type="checkbox" checked /></label>
+      <label>Color <input id="satToggle" type="checkbox" checked /></label>
+      <button id="pomoToggle" title="Start/pause focus timer (Space)">▶ Focus</button>
+      <button id="pomoReset" title="Reset timer (0)">⟲</button>
+      <span class="hint">keys: h/p mode · l live · i ink · c color · space focus · . skip · n/b track</span>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Inkwell runtime logs (written by the launchd helper)
+inkwell.log
+inkwell.err.log
+
+# User videos — large/personal; discovered at runtime from assets/.
+# The folder is kept (via .gitkeep) but its media is not committed.
+assets/*
+!assets/.gitkeep
+
+# Node (not used by Inkwell, but just in case)
+node_modules/
