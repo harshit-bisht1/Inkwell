@@ -79,8 +79,13 @@ full panel ≈ 6 (use lite / 720p / plug in). No permanent impact on the Mac.
 ## Controls
 
 URL params (reliable in Plash): `mode=halftone|panel`, `live=0|1`, `panels=full|lite`,
-`dpr=2`, `video=<url>`, `dots=3..16`, `angle=15`, `ink=0|1`, `color=0|1`,
-`work=25`, `break=5`, `rpg=0|1`.
+`first=<text>` (pin the first clip whose filename contains this), `dpr=2`,
+`video=<url>`, `dots=3..16`, `angle=15`, `ink=0|1`, `color=0|1`, `work=25`,
+`break=5`, `rpg=0|1`.
+
+Because Plash remembers your last state, the URL is how you pin a fixed default —
+e.g. always open on a static Goku halftone:
+`…/index.html?mode=halftone&live=0&first=ultra-instinct-goku`
 
 Hover for a control bar, or use keys:
 

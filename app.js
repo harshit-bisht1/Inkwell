@@ -486,9 +486,17 @@ async function discover() {
 }
 (async function boot() {
   PLAYLIST = await discover();
+  // ?first=<substring> pins a preferred clip to the front (and starts on it)
+  const first = params.get("first");
+  let start = Number(saved("track", 0));
+  if (first && PLAYLIST.length) {
+    const i = PLAYLIST.findIndex((n) => n.toLowerCase().includes(first.toLowerCase()));
+    if (i > 0) PLAYLIST.unshift(PLAYLIST.splice(i, 1)[0]);
+    if (i >= 0) start = 0;
+  }
   const srcParam = params.get("video");
   if (srcParam) { mainSrc.name = null; video.src = srcParam; video.load(); }
-  else if (PLAYLIST.length) playTrack(Number(saved("track", 0)));
+  else if (PLAYLIST.length) playTrack(start);
   else { status("Drop videos into the assets/ folder, then reload.", "showing demo footage"); useDemo(); }
   setMode(mode);
   setRPG(rpgOn);
