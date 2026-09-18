@@ -13,7 +13,8 @@
  *
  * Params: ?mode=halftone|panel &live=0|1 &panels=full|lite &dpr=2
  *         &dots=6 &angle=15 &ink=0|1 &color=0|1 &work=25 &break=5 &rpg=0|1
- * Keys: h/p mode · m cycle · l live/static · i ink · c color · n/b next · space focus · 0 reset · . skip · r rpg
+ * Keys: h/p mode · m cycle · l live/static · g cycle MP gauge · i ink · c color
+ *       · n/b next · r rpg · space/0/. Pomodoro (when that gauge is showing)
  */
 
 // The playlist is discovered from the assets/ folder at boot (see discover()).
@@ -265,7 +266,7 @@ const panels = LAYOUT.map((def) => {
   el.className = "mpanel " + def.type + (def.spd ? " spd" : "");
   el.style.gridArea = def.area;
   if (def.type === "clock") {
-    el.classList.add("paper-tone"); el.append(buildStatus()); page.append(el);
+    el.classList.add("paper-tone", "sky"); el.append(buildStatus()); page.append(el);
     return { el, type: "clock" };
   }
   const vid = document.createElement("video");
@@ -311,22 +312,52 @@ function tick() {
 }
 tick(); setInterval(tick, 10_000);
 
+/* ---------- day/night sky theme for the clock block (always on) ----------
+ * The status block eases from warm paper (day) to dark indigo (night), with a
+ * sun that arcs left→right and becomes a moon after sunset. Pure time math. */
+const DAY_BG = [246, 240, 226], NIGHT_BG = [24, 22, 44];
+const DAY_FG = [17, 17, 17], NIGHT_FG = [233, 231, 242];
+const mixc = (a, b, t) => "rgb(" + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",") + ")";
+function daylight(h) {                       // 0 = deep night, 1 = midday
+  if (h < 5 || h >= 21) return 0;
+  if (h >= 8 && h < 17) return 1;
+  if (h < 8) return (h - 5) / 3;             // dawn ramp 5→8
+  return (21 - h) / 4;                        // dusk ramp 17→21
+}
+function applySky() {
+  const now = new Date(), h = now.getHours() + now.getMinutes() / 60, dl = daylight(h);
+  const bg = mixc(NIGHT_BG, DAY_BG, dl), fg = mixc(NIGHT_FG, DAY_FG, dl);
+  const isDay = h >= 6 && h < 19;
+  const x = isDay ? (h - 6) / 13 : ((h + 24 - 19) % 24) / 11;   // 0..1 across day / night
+  const y = 1 - Math.sin(Math.max(0, Math.min(1, x)) * Math.PI);
+  setAll(".sky", (el) => { el.style.backgroundColor = bg; el.style.color = fg; });
+  setAll(".celestial", (el) => {
+    el.style.left = (6 + x * 84) + "%";
+    el.style.top = (5 + y * 18) + "%";
+    el.style.background = isDay ? "#ffd24d" : "#dfe3ef";
+    el.style.boxShadow = isDay ? "0 0 1.2vmin #ffd24d99" : "inset -0.55vmin -0.2vmin 0 rgba(0,0,0,.45)";
+  });
+}
+
 /* =====================================================================
-   STATUS BLOCK + RPG (HP = battery, MP = Pomodoro)
+   STATUS BLOCK + RPG — HP = battery, MP = cyclable gauge (RAM / Pomodoro)
    ===================================================================== */
 function buildStatus() {
   const w = document.createElement("div");
   w.className = "statusblock";
   w.innerHTML =
+    '<div class="celestial"></div>' +
     '<div class="st-time">--:--</div>' +
     '<div class="st-date"></div>' +
     '<div class="st-bars">' +
       '<div class="st-row"><span class="st-tag hp">HP</span><div class="st-bar"><i class="st-hp"></i></div><span class="st-num st-hpnum">--</span></div>' +
-      '<div class="st-row mp-row" title="Focus timer — Space: start/pause"><span class="st-tag mp">MP</span><div class="st-bar"><i class="st-mp"></i></div><span class="st-num st-mpnum">--</span></div>' +
+      '<div class="st-row mp-row" title="MP gauge — press g to cycle (RAM / Pomodoro)"><span class="st-tag mp">MP</span><div class="st-bar"><i class="st-mp"></i></div><span class="st-num st-mpnum">--</span></div>' +
     '</div>';
   return w;
 }
 $("#statusCard").append(buildStatus());
+$("#statusCard").classList.add("sky");
+applySky(); setInterval(applySky, 60_000);   // start the day/night theme (after .sky is set on both blocks)
 
 let serverBattery = null, battery = null;
 if (navigator.getBattery) navigator.getBattery().then((b) => {
@@ -341,6 +372,20 @@ async function pollBattery() {
   } catch {}
 }
 pollBattery(); setInterval(pollBattery, 30000);
+
+// system stats for the passive analytics gauge (memory %, cpu %)
+let serverStats = null;
+async function pollStats() {
+  try { const r = await fetch("stats.json", { cache: "no-store" }); if (r.ok) { serverStats = await r.json(); updateRPG(); } } catch {}
+}
+pollStats(); setInterval(pollStats, 5000);
+
+// MP cycles through these passive analytics with one key (app default: ram).
+// Add more here later and the single cycle key picks them up automatically.
+const GAUGES = ["ram", "pomodoro"];
+let gaugeIdx = Math.max(0, GAUGES.indexOf(saved("gauge", "ram")));
+const gauge = () => GAUGES[gaugeIdx];
+function cycleGauge() { gaugeIdx = (gaugeIdx + 1) % GAUGES.length; save("gauge", GAUGES[gaugeIdx]); updateRPG(); }
 
 const clamp = (v) => Math.max(0, Math.min(100, v));
 function hpColor(v) { return v > 50 ? "#2ea043" : v > 20 ? "#e3a008" : "#d7263d"; }
@@ -375,18 +420,27 @@ function updateRPG() {
   if (serverBattery && serverBattery.level != null) { hp = serverBattery.level; tag = serverBattery.charging ? "CHG" : "HP"; }
   else if (battery) { hp = battery.level * 100; tag = battery.charging ? "CHG" : "HP"; }
   else { hp = (1 - (Date.now() / 1000 / (25 * 60)) % 1) * 100; tag = "FOC"; }
-  pomoAdvanceIfDone();
-  const remain = pomoRemain();
-  const working = pomo.phase === "work";
-  const mp = remain / dur(pomo.phase) * 100;
-  const mtag = !pomo.running ? "PAU" : working ? "WRK" : "BRK";
-  const mnum = Math.floor(remain / 60) + ":" + String(Math.floor(remain % 60)).padStart(2, "0");
+  // MP = the currently selected gauge (ram | pomodoro | …future)
+  let mtag, mval, mnum, mcolor, mop = "1";
+  if (gauge() === "pomodoro") {
+    pomoAdvanceIfDone();
+    const remain = pomoRemain(), working = pomo.phase === "work";
+    mval = remain / dur(pomo.phase) * 100;
+    mtag = !pomo.running ? "PAU" : working ? "WRK" : "BRK";
+    mnum = Math.floor(remain / 60) + ":" + String(Math.floor(remain % 60)).padStart(2, "0");
+    mcolor = working ? "#1f5fae" : "#2ea043";
+    mop = pomo.running ? "1" : ".45";
+  } else {                                   // ram (mana)
+    const mem = serverStats ? serverStats.mem : null;
+    mtag = "MP"; mval = mem == null ? 0 : mem; mnum = mem == null ? "–" : mem + "%";
+    mcolor = mem == null ? "#888" : mem > 85 ? "#d7263d" : mem > 60 ? "#e3a008" : "#1f5fae";
+  }
   setAll(".st-tag.hp", (e) => (e.textContent = tag));
   setAll(".st-hpnum", (e) => (e.textContent = Math.round(hp)));
   setAll(".st-hp", (e) => { e.style.width = clamp(hp) + "%"; e.style.background = hpColor(hp); });
   setAll(".st-tag.mp", (e) => (e.textContent = mtag));
   setAll(".st-mpnum", (e) => (e.textContent = mnum));
-  setAll(".st-mp", (e) => { e.style.width = clamp(mp) + "%"; e.style.background = working ? "#1f5fae" : "#2ea043"; e.style.opacity = pomo.running ? "1" : ".45"; });
+  setAll(".st-mp", (e) => { e.style.width = clamp(mval) + "%"; e.style.background = mcolor; e.style.opacity = mop; });
   setAll("#pomoToggle", (e) => (e.textContent = pomo.running ? "⏸ Focus" : "▶ Focus"));
 }
 updateRPG(); setInterval(updateRPG, 1000);
@@ -439,13 +493,15 @@ addEventListener("keydown", (e) => {
   else if (e.key === "i") setInk(!P.ink);
   else if (e.key === "c") setColor(!P.color);
   else if (e.key === "r") setRPG(!rpgOn);
+  else if (e.key === "g") cycleGauge();                     // cycle the MP analytic
   else if (e.key === "n") nextVideo(1);
   else if (e.key === "b") nextVideo(-1);
-  else if (e.key === " ") { e.preventDefault(); pomoToggle(); }
-  else if (e.key === "0") pomoReset();
-  else if (e.key === ".") pomoSkip();
+  // Pomodoro controls act only when the Pomodoro gauge is showing
+  else if (e.key === " " && gauge() === "pomodoro") { e.preventDefault(); pomoToggle(); }
+  else if (e.key === "0" && gauge() === "pomodoro") pomoReset();
+  else if (e.key === "." && gauge() === "pomodoro") pomoSkip();
 });
-addEventListener("click", (e) => { if (e.target.closest(".mp-row")) pomoToggle(); });
+addEventListener("click", (e) => { if (e.target.closest(".mp-row") && gauge() === "pomodoro") pomoToggle(); });
 function nextVideo(dir) {
   if (mode === "panel") { panelOffset += dir * videoPanels.length; save("offset", panelOffset); loadPanelVideos(); }
   else playTrack(track + dir);

@@ -58,7 +58,8 @@ html, body { width: 100vw; height: 100vh; margin: 0; background: #000; overflow:
 /* =====================================================================
    STATUS BLOCK — clock + HP/MP gauges, manga-styled (ink on screentone paper).
    Same markup lives inside the clock panel (panel mode) and #statusCard
-   (halftone mode). HP = battery, MP = day remaining.
+   (halftone mode). HP = battery; MP = cyclable gauge (RAM / Pomodoro).
+   The .sky class carries the day/night theme (colors set by app.js).
    ===================================================================== */
 .paper-tone {
   background-color: var(--paper); color: #111;
@@ -73,6 +74,13 @@ html, body { width: 100vw; height: 100vh; margin: 0; background: #000; overflow:
 .statusblock {
   display: flex; flex-direction: column; justify-content: center;
   width: 100%; height: 100%; text-align: center; overflow: hidden;
+}
+/* sun/moon marker for the day/night theme (positioned by app.js) */
+.celestial {
+  position: absolute; width: 2.2vmin; height: 2.2vmin;
+  min-width: 12px; min-height: 12px; border-radius: 50%;
+  pointer-events: none; z-index: 1;
+  transition: left 3s linear, top 3s linear, background 2s ease, box-shadow 2s ease;
 }
 .st-time { line-height: 1; letter-spacing: 2px; }
 .st-date { text-transform: uppercase; letter-spacing: 1px; opacity: .85; }

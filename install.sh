@@ -43,7 +43,7 @@ PLISTEOF
 
 echo "→ (Re)starting the helper"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || true
 launchctl kickstart -k "gui/$(id -u)/$LABEL"
 
 sleep 1

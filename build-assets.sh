@@ -27,19 +27,23 @@ files=("$SRC"/*.mp4 "$SRC"/*.mov "$SRC"/*.webm "$SRC"/*.m4v)
 shopt -u nullglob nocaseglob
 [ ${#files[@]} -gt 0 ] || { echo "No videos found in $SRC"; exit 0; }
 
-n=0; built=0; skipped=0
+n=0; built=0; skipped=0; failed=0
 for src in "${files[@]}"; do
   n=$((n+1))
   base="$(basename "${src%.*}")"
   dst="$OUT/$base.mp4"
   if [ -f "$dst" ]; then echo "  · exists: $base.mp4"; skipped=$((skipped+1)); continue; fi
   echo "→ [$n/${#files[@]}] $base"
-  ffmpeg -y -loglevel error -i "$src" \
-    -an -vf "scale=-2:720:flags=lanczos,fps=30" \
-    -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 24 -preset veryfast \
-    -movflags +faststart "$dst" && built=$((built+1))
+  if ffmpeg -y -loglevel error -i "$src" \
+       -an -vf "scale=-2:720:flags=lanczos,fps=30" \
+       -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 24 -preset veryfast \
+       -movflags +faststart "$dst"; then
+    built=$((built+1))
+  else
+    echo "  ! failed: $base (skipped)"; rm -f "$dst"; failed=$((failed+1))
+  fi
 done
 
 echo ""
-echo "✓ Done. built=$built skipped=$skipped → $OUT"
+echo "✓ Done. built=$built skipped=$skipped failed=${failed:-0} → $OUT"
 echo "  Reload the wallpaper in Plash."

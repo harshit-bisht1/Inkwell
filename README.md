@@ -1,8 +1,8 @@
 # Inkwell
 
 Turns your live wallpapers into **colored manga art** — real screentone halftone,
-ink outlines, and a Persona-style RPG status bar — as a page you point
-[Plash](https://sindresorhus.com/plash) at.
+ink outlines, and an RPG-style status panel (battery + live stats) — as a page you
+point [Plash](https://sindresorhus.com/plash) at.
 
 Three looks / features, one page:
 
@@ -12,8 +12,11 @@ Three looks / features, one page:
 - **Panel** — a manga *page*: several bordered panels, each playing a *different*
   wallpaper, plus speed lines and a **status** panel.
 - **Status panel** — clock + an **HP** gauge (your real **battery**, via the helper)
-  and an **MP** gauge (a **Pomodoro** timer). It's the clock panel in panel mode, and
-  a small card top-right in halftone mode. Styled as ink-on-paper to match.
+  and an **MP** gauge that **cycles through passive analytics** with one key: **RAM
+  used** (default) and a **Pomodoro** timer, extensible to more. The clock block has
+  an always-on **day↔night theme** (warm paper by day → dark indigo by night, with a
+  sun/moon that arcs across it). It's the clock panel in panel mode, a small card
+  top-right in halftone mode. Ink-on-paper styling.
 
 ## Why the halftone is a shader
 
@@ -97,14 +100,17 @@ Hover for a control bar, or use keys:
 | i     | ink outlines on/off       |
 | c     | color / B&W               |
 | r     | status bar on/off         |
+| g     | cycle the MP gauge (RAM ↔ Pomodoro ↔ …) |
 | n/b   | next / previous wallpaper (panel mode rolls the whole set) |
-| space | Pomodoro start / pause    |
-| 0     | Pomodoro reset            |
-| .     | Pomodoro skip phase       |
+| space | Pomodoro start / pause *(only when the Pomodoro gauge is showing)* |
+| 0     | Pomodoro reset *(Pomodoro gauge)* |
+| .     | Pomodoro skip phase *(Pomodoro gauge)* |
 
-The **MP gauge is a Pomodoro timer** (25 min work / 5 min break, set with
-`?work=25&break=5`). It starts paused (tag `PAU`); Space or the hover **Focus**
-button starts/pauses it, `0` resets. State persists across reloads.
+The **MP gauge cycles** through passive analytics with **g** — **RAM used** (the
+default, read via the helper) and a **Pomodoro** timer (25/5, set with
+`?work=25&break=5`). Adding a new analytic to the `GAUGES` array in `app.js` makes
+it part of the same cycle automatically. When the Pomodoro is showing, Space/`.`/`0`
+(or the hover **Focus** button) control it; its state persists across reloads.
 
 **Interacting inside Plash:** a wallpaper isn't clickable by default — toggle
 **Plash → Browsing Mode** (menu-bar icon) to let the keys and hover buttons work,
@@ -113,8 +119,8 @@ then toggle it back off. Drag a video file onto the page to preview it.
 ## Files
 
 - `index.html` / `style.css` — layout, panels, gutters, status panel, HUD.
-- `app.js` — WebGL halftone/ink shader, source handling, modes, battery, Pomodoro.
-- `server.mjs` — local helper (serves the folder + `/battery.json` + `/videos.json`).
+- `app.js` — WebGL halftone/ink shader, source handling, modes, gauges, day/night theme.
+- `server.mjs` — local helper (serves the folder + `/battery.json`, `/stats.json`, `/videos.json`).
 - `install.sh` / `uninstall.sh` — start/stop the helper (launchd agent).
 - `build-assets.sh` — optional 720p transcodes into `assets/` (needs ffmpeg).
 - `assets/` — your videos (auto-discovered, first 24 alphabetically).
