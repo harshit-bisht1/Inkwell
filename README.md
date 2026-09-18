@@ -46,6 +46,12 @@ stacking CSS/SVG layers across many panels.
 To change wallpapers later: add/remove files in `assets/` and reload in Plash.
 Remove the helper with `./uninstall.sh`.
 
+> **Moved or renamed the project folder?** Re-run `./install.sh`. The `launchd`
+> agent stores the folder's absolute path, so after a move the old path is dead and
+> the page 404s with `not found` on reload. Re-running the installer repoints the
+> agent at the new location. (A fresh `git clone` + `./install.sh` always works —
+> the path is only stale if you move the folder *after* installing.)
+
 Optional: shrink big/4K videos with `./build-assets.sh /path/to/raw/videos`
 (needs `brew install ffmpeg`) — it writes 720p copies into `assets/`.
 
