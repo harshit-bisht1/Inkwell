@@ -1,10 +1,11 @@
 # Inkwell
 
 Turns your live wallpapers into **colored manga art** — real screentone halftone,
-ink outlines, and an RPG-style status panel (battery + live stats) — as a page you
-point [Plash](https://sindresorhus.com/plash) at.
+ink outlines, and an RPG-style status panel — as a page you point
+[Plash](https://sindresorhus.com/plash) at. Static by default, so it sips power;
+the control bar stays hidden until you press `?`.
 
-Three looks / features, one page:
+What you get, one page:
 
 - **Halftone** — your footage rendered fullscreen as color halftone (dot size grows
   in shadows, shrinks in highlights) with Sobel ink outlines. A WebGL shader, not a
@@ -17,6 +18,9 @@ Three looks / features, one page:
   an always-on **day↔night theme** (warm paper by day → dark indigo by night, with a
   sun/moon that arcs across it). It's the clock panel in panel mode, a small card
   top-right in halftone mode. Ink-on-paper styling.
+- **Now playing + visualizer** — shows `♪ Title — Artist` from macOS Now Playing,
+  and animates a bar-equalizer backdrop behind the clock while music plays (it
+  pauses when you're unplugged and low on battery — see [Now playing](#now-playing)).
 
 ## Why the halftone is a shader
 
