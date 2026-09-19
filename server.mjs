@@ -2,9 +2,10 @@
  * Serves the page + videos from its own folder, and exposes small JSON endpoints
  * the wallpaper can't get on its own inside Plash (WebKit blocks the Battery API
  * and file:// fetches):
- *   /battery.json  → { level, charging }   (via `pmset`)
- *   /stats.json    → { mem, cpu }          (memory used % + CPU load %)
- *   /videos.json   → ["clip.mp4", …]       (files in assets/, drives the playlist)
+ *   /battery.json     → { level, charging }   (via `pmset`)
+ *   /stats.json       → { mem, cpu }          (memory used % + CPU load %)
+ *   /videos.json      → ["clip.mp4", …]       (files in assets/, drives the playlist)
+ *   /nowplaying.json  → { playing, title, artist }  (via macOS Now Playing)
  *
  * Run:   node server.mjs     (usually via the launchd agent — see install.sh)
  * Point Plash at:  http://localhost:8787/index.html
@@ -13,7 +14,7 @@
 import http from "node:http";
 import os from "node:os";
 import { stat, readdir } from "node:fs/promises";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { extname, join, normalize, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +39,28 @@ function readStats() {
       if (mem == null) mem = Math.round((1 - os.freemem() / os.totalmem()) * 100);
       const cpu = Math.min(100, Math.round((os.loadavg()[0] / (os.cpus().length || 1)) * 100));
       resolve({ mem, cpu });
+    });
+  });
+}
+
+/* macOS "Now Playing" via nowplaying-cli (brew) — reads the system media info
+   (whatever holds the media session: a music web player, desktop app, video,
+   etc.). launchd runs with a minimal PATH, so we resolve the Homebrew binary by
+   absolute path. */
+const NOWPLAYING_BIN =
+  ["/opt/homebrew/bin/nowplaying-cli", "/usr/local/bin/nowplaying-cli"].find((p) => existsSync(p)) || null;
+function readNowPlayingOS() {
+  return new Promise((resolve) => {
+    if (!NOWPLAYING_BIN) return resolve(null);
+    execFile(NOWPLAYING_BIN, ["get", "title", "artist", "playbackRate"], { timeout: 3000 }, (err, out) => {
+      if (err || !out) return resolve(null);
+      const [title, artist, rate] = out.split("\n").map((s) => s.trim());
+      if (!title || title === "null") return resolve(null);
+      resolve({
+        playing: parseFloat(rate) > 0,
+        title,
+        artist: artist && artist !== "null" ? artist : "",
+      });
     });
   });
 }
@@ -78,6 +101,17 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     return res.end(JSON.stringify(files));
   }
+
+  // --- What's playing right now (macOS Now Playing → drives the NP line) ---
+  if (path === "/nowplaying.json") {
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    const np = await readNowPlayingOS();
+    if (np) return res.end(JSON.stringify({ ...np, configured: true }));
+    return res.end(JSON.stringify({ playing: false, configured: !!NOWPLAYING_BIN }));
+  }
+
+  // never serve dotfiles (.git, …) over HTTP — keeps local files private
+  if (path.split("/").some((seg) => seg.startsWith("."))) { res.writeHead(404); return res.end("not found"); }
 
   const file = normalize(join(ROOT, path === "/" ? "/index.html" : path));
   if (file !== ROOT && !file.startsWith(ROOT + sep)) { res.writeHead(403); return res.end("forbidden"); }

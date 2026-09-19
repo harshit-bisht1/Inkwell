@@ -12,9 +12,10 @@
  *   - 720p assets (build-assets.sh) shrink decode + memory; ?dpr= caps resolution.
  *
  * Params: ?mode=halftone|panel &live=0|1 &panels=full|lite &dpr=2
- *         &dots=6 &angle=15 &ink=0|1 &color=0|1 &work=25 &break=5 &rpg=0|1
+ *         &dots=6 &angle=15 &ink=0|1 &color=0|1 &work=25 &break=5 &rpg=0|1 &hud=0|1
  * Keys: h/p mode · m cycle · l live/static · g cycle MP gauge · i ink · c color
- *       · n/b next · r rpg · space/0/. Pomodoro (when that gauge is showing)
+ *       · n/b next · r rpg · ? show/hide control bar (hidden by default)
+ *       · space/0/. Pomodoro (when that gauge is showing)
  */
 
 // The playlist is discovered from the assets/ folder at boot (see discover()).
@@ -299,7 +300,7 @@ function ensurePanels() { if (!panelsLoaded) loadPanelVideos(); }
 // pause everything when hidden/covered; resume on show
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { video.pause(); videoPanels.forEach((p) => p.vid.pause()); }
-  else applyPlayback();
+  else { applyPlayback(); renderNowPlaying(); }   // renderNowPlaying re-kicks the visualizer
 });
 
 /* ---------- clock ---------- */
@@ -317,6 +318,7 @@ tick(); setInterval(tick, 10_000);
  * sun that arcs left→right and becomes a moon after sunset. Pure time math. */
 const DAY_BG = [246, 240, 226], NIGHT_BG = [24, 22, 44];
 const DAY_FG = [17, 17, 17], NIGHT_FG = [233, 231, 242];
+let vizColor = "rgb(17,17,17)";               // theme text colour, cached for the visualizer
 const mixc = (a, b, t) => "rgb(" + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",") + ")";
 function daylight(h) {                       // 0 = deep night, 1 = midday
   if (h < 5 || h >= 21) return 0;
@@ -327,13 +329,16 @@ function daylight(h) {                       // 0 = deep night, 1 = midday
 function applySky() {
   const now = new Date(), h = now.getHours() + now.getMinutes() / 60, dl = daylight(h);
   const bg = mixc(NIGHT_BG, DAY_BG, dl), fg = mixc(NIGHT_FG, DAY_FG, dl);
+  vizColor = fg;                              // cache for the visualizer (avoids a per-frame style read)
   const isDay = h >= 6 && h < 19;
   const x = isDay ? (h - 6) / 13 : ((h + 24 - 19) % 24) / 11;   // 0..1 across day / night
   const y = 1 - Math.sin(Math.max(0, Math.min(1, x)) * Math.PI);
   setAll(".sky", (el) => { el.style.backgroundColor = bg; el.style.color = fg; });
   setAll(".celestial", (el) => {
+    // arc across the top, grazing the clock (a little over / slightly intersecting
+    // the digits); high at midday, dips a touch lower at dawn/dusk
     el.style.left = (6 + x * 84) + "%";
-    el.style.top = (5 + y * 18) + "%";
+    el.style.top = (0.3 + y * 0.7) + "em";
     el.style.background = isDay ? "#ffd24d" : "#dfe3ef";
     el.style.boxShadow = isDay ? "0 0 1.2vmin #ffd24d99" : "inset -0.55vmin -0.2vmin 0 rgba(0,0,0,.45)";
   });
@@ -346,18 +351,72 @@ function buildStatus() {
   const w = document.createElement("div");
   w.className = "statusblock";
   w.innerHTML =
+    '<canvas class="viz"></canvas>' +
     '<div class="celestial"></div>' +
     '<div class="st-time">--:--</div>' +
     '<div class="st-date"></div>' +
     '<div class="st-bars">' +
       '<div class="st-row"><span class="st-tag hp">HP</span><div class="st-bar"><i class="st-hp"></i></div><span class="st-num st-hpnum">--</span></div>' +
       '<div class="st-row mp-row" title="MP gauge — press g to cycle (RAM / Pomodoro)"><span class="st-tag mp">MP</span><div class="st-bar"><i class="st-mp"></i></div><span class="st-num st-mpnum">--</span></div>' +
-    '</div>';
+    '</div>' +
+    '<div class="st-now" hidden><span class="np-ico">♪</span><span class="np-txt"></span></div>';
   return w;
 }
 $("#statusCard").append(buildStatus());
 $("#statusCard").classList.add("sky");
 applySky(); setInterval(applySky, 60_000);   // start the day/night theme (after .sky is set on both blocks)
+
+/* =====================================================================
+   MUSIC VISUALIZER — animated bar backdrop behind the clock/gauges.
+   We can't read the actual audio (it plays in another app), so this is a
+   layered-oscillator "EQ" that swells while music is playing and eases to
+   flat when it stops. RAF only runs while it has energy (and never while the
+   wallpaper is hidden), so it costs nothing when paused/idle. Colour follows
+   the day/night theme via the inherited text colour.
+   ===================================================================== */
+function makeViz(canvas) {
+  const ctx = canvas.getContext("2d");
+  const BARS = 10;
+  const phase = Array.from({ length: BARS }, (_, i) => i * 0.7);
+  const speed = Array.from({ length: BARS }, () => 0.6 + Math.random() * 1.4);
+  let amp = 0, target = 0, raf = 0, last = 0;
+  function frame(t) {
+    raf = 0;
+    if (document.hidden) return;                       // stop when covered
+    if (t - last >= 33) {                              // ~30fps
+      last = t;
+      // a <canvas> is a replaced element and won't stretch via inset:0, so we
+      // size it explicitly from its parent block (the status block)
+      const host = canvas.parentElement, cw = host.clientWidth, ch = host.clientHeight;
+      if (!cw || !ch) return;                          // not rendered (wrong mode) → stop
+      const w = Math.round(cw * DPR), h = Math.round(ch * DPR);
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w; canvas.height = h;
+        canvas.style.width = cw + "px"; canvas.style.height = ch + "px";
+      }
+      amp += (target - amp) * 0.09;                    // ease toward play/pause
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = vizColor;                        // cached theme colour (set in applySky)
+      ctx.globalAlpha = 0.2;                           // subtle so text stays readable
+      const now = t / 1000, gap = w * 0.004, bw = (w - gap * (BARS - 1)) / BARS;
+      for (let i = 0; i < BARS; i++) {
+        const a = Math.sin(now * speed[i] * 3 + phase[i]) * 0.5 + 0.5;
+        const b = Math.sin(now * speed[i] * 7 + phase[i] * 1.7) * 0.5 + 0.5;
+        const center = Math.max(0.2, 1 - Math.abs(i / (BARS - 1) - 0.5) * 1.3);  // taller mid ("bass")
+        const bh = Math.max(0, Math.min(1, (0.12 + (a * 0.6 + b * 0.4) * center) * amp)) * h * 0.92;
+        ctx.fillRect(i * (bw + gap), h - bh, bw, bh);   // baseline at h = bottom of the block
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (amp > 0.01 || target > 0) raf = requestAnimationFrame(frame);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);   // fully idle → stop + clear
+  }
+  // starting the loop only when turning ON keeps idle truly cost-free; turning
+  // OFF just lets the already-running loop ease to flat and stop on its own.
+  return { set playing(v) { target = v ? 1 : 0; if (target && !raf && !document.hidden) { last = 0; raf = requestAnimationFrame(frame); } } };
+}
+const vizzes = [...document.querySelectorAll(".viz")].map(makeViz);
+function setViz(on) { vizzes.forEach((v) => (v.playing = on)); }
 
 let serverBattery = null, battery = null;
 if (navigator.getBattery) navigator.getBattery().then((b) => {
@@ -379,6 +438,28 @@ async function pollStats() {
   try { const r = await fetch("stats.json", { cache: "no-store" }); if (r.ok) { serverStats = await r.json(); updateRPG(); } } catch {}
 }
 pollStats(); setInterval(pollStats, 5000);
+
+// "Now playing" (via the helper's /nowplaying.json — macOS media info).
+// Hidden until something is actually playing; shows "♪ Title — Artist".
+let nowPlaying = null;
+async function pollNowPlaying() {
+  try { const r = await fetch("nowplaying.json", { cache: "no-store" }); if (r.ok) { nowPlaying = await r.json(); renderNowPlaying(); } } catch {}
+}
+function renderNowPlaying() {
+  const on = !!(nowPlaying && nowPlaying.playing && nowPlaying.title);
+  setAll(".st-now", (e) => (e.hidden = !on));
+  if (on) setAll(".np-txt", (e) => (e.textContent = nowPlaying.title + (nowPlaying.artist ? " — " + nowPlaying.artist : "")));
+  refreshViz();                                // swell the bar visualizer while playing (battery permitting)
+}
+// pause the visualizer to save power when unplugged and under 50% battery
+function currentBattery() {
+  if (serverBattery && serverBattery.level != null) return { level: serverBattery.level, charging: !!serverBattery.charging };
+  if (battery) return { level: battery.level * 100, charging: !!battery.charging };
+  return null;                                 // unknown → don't restrict
+}
+function vizBatteryOk() { const b = currentBattery(); return !b || b.charging || b.level >= 50; }
+function refreshViz() { setViz(!!(nowPlaying && nowPlaying.playing && nowPlaying.title) && vizBatteryOk()); }
+pollNowPlaying(); setInterval(pollNowPlaying, 5000);
 
 // MP cycles through these passive analytics with one key (app default: ram).
 // Add more here later and the single cycle key picks them up automatically.
@@ -442,11 +523,16 @@ function updateRPG() {
   setAll(".st-mpnum", (e) => (e.textContent = mnum));
   setAll(".st-mp", (e) => { e.style.width = clamp(mval) + "%"; e.style.background = mcolor; e.style.opacity = mop; });
   setAll("#pomoToggle", (e) => (e.textContent = pomo.running ? "⏸ Focus" : "▶ Focus"));
+  refreshViz();                                // re-check battery gate (plug/unplug, crossing 50%)
 }
 updateRPG(); setInterval(updateRPG, 1000);
 
 let rpgOn = (params.get("rpg") ?? saved("rpg", 1)) != 0;
 function setRPG(on) { rpgOn = on; save("rpg", on ? 1 : 0); document.body.classList.toggle("hide-rpg", !on); }
+
+// control bar is hidden by default (clean wallpaper); toggle it with `?`
+let hudOn = (params.get("hud") ?? saved("hud", 0)) != 0;
+function setHud(on) { hudOn = on; save("hud", on ? 1 : 0); document.body.classList.toggle("show-hud", on); }
 
 /* ---------- mode + playback ---------- */
 function setMode(m) {
@@ -457,6 +543,7 @@ function setMode(m) {
   document.querySelectorAll(".hud button[data-mode]").forEach((b) => b.classList.toggle("active", b.dataset.mode === m));
   if (m === "panel") ensurePanels();
   applyPlayback();
+  renderNowPlaying();                           // re-kick the visualizer on the now-visible block
 }
 function applyPlayback() {
   const activeVids = mode === "panel" ? videoPanels.map((p) => p.vid) : [video];
@@ -494,6 +581,7 @@ addEventListener("keydown", (e) => {
   else if (e.key === "c") setColor(!P.color);
   else if (e.key === "r") setRPG(!rpgOn);
   else if (e.key === "g") cycleGauge();                     // cycle the MP analytic
+  else if (e.key === "?" || e.key === "/") setHud(!hudOn);   // show/hide the control bar
   else if (e.key === "n") nextVideo(1);
   else if (e.key === "b") nextVideo(-1);
   // Pomodoro controls act only when the Pomodoro gauge is showing
@@ -557,4 +645,5 @@ async function discover() {
   setMode(mode);
   setRPG(rpgOn);
   setLive(live);
+  setHud(hudOn);
 })();

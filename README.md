@@ -64,6 +64,33 @@ The HP bar uses the first source available:
 3. **Focus fallback** → a 25-min self-draining cycle. Tag `FOC`. This is what a
    plain `file://` page in Safari/Plash shows without the helper.
 
+## Now playing
+
+The wallpaper shows a `♪ Title — Artist` line under HP/MP whenever something is
+playing. The helper reads the system's macOS "Now Playing" info (the same thing
+Control Center shows), which picks up the Spotify web player, the desktop app,
+YouTube, etc. — no account or login needed. It's optional; skip it and everything
+else works as before.
+
+```bash
+brew install nowplaying-cli
+```
+
+That's it — reload the wallpaper and play something. Everything stays local.
+
+While a track is playing, the status block also animates a **bar visualizer**
+behind the clock/gauges (it eases flat when paused). It's a simulated equalizer —
+the wallpaper can't read the actual audio stream (that lives in another app), so
+the bars react to play/pause and swell with the music's presence rather than to
+its exact frequencies. It only animates while something plays and while the
+wallpaper is visible, and it **pauses automatically when you're unplugged and
+under 50% battery**, so it's idle-cheap.
+
+Uses the private macOS MediaRemote framework via `nowplaying-cli`; Apple has
+restricted this on some recent macOS versions, so if `nowplaying-cli get title`
+returns nothing on your OS, this feature won't work (and the line just stays
+hidden — no errors).
+
 ## Efficiency (running it all day)
 
 Inkwell is built to sip power:
@@ -87,10 +114,14 @@ full panel ≈ 6 (use lite / 720p / plug in). No permanent impact on the Mac.
 
 ## Controls
 
+The control bar is **hidden by default** so the wallpaper stays clean — press **?**
+(or the **/** key) to show or hide it. Everything is also driven by the keys below,
+so you rarely need the bar at all.
+
 URL params (reliable in Plash): `mode=halftone|panel`, `live=0|1`, `panels=full|lite`,
 `first=<text>` (pin the first clip whose filename contains this), `dpr=2`,
 `video=<url>`, `dots=3..16`, `angle=15`, `ink=0|1`, `color=0|1`, `work=25`,
-`break=5`, `rpg=0|1`.
+`break=5`, `rpg=0|1`, `hud=0|1` (start with the control bar shown).
 
 Because Plash remembers your last state, the URL is how you pin a fixed default —
 e.g. always open on a static Goku halftone:
@@ -107,6 +138,7 @@ Hover for a control bar, or use keys:
 | c     | color / B&W               |
 | r     | status bar on/off         |
 | g     | cycle the MP gauge (RAM ↔ Pomodoro ↔ …) |
+| ?     | show / hide the control bar (hidden by default) |
 | n/b   | next / previous wallpaper (panel mode rolls the whole set) |
 | space | Pomodoro start / pause *(only when the Pomodoro gauge is showing)* |
 | 0     | Pomodoro reset *(Pomodoro gauge)* |
@@ -126,7 +158,7 @@ then toggle it back off. Drag a video file onto the page to preview it.
 
 - `index.html` / `style.css` — layout, panels, gutters, status panel, HUD.
 - `app.js` — WebGL halftone/ink shader, source handling, modes, gauges, day/night theme.
-- `server.mjs` — local helper (serves the folder + `/battery.json`, `/stats.json`, `/videos.json`).
+- `server.mjs` — local helper (serves the folder + `/battery.json`, `/stats.json`, `/videos.json`, `/nowplaying.json`).
 - `install.sh` / `uninstall.sh` — start/stop the helper (launchd agent).
 - `build-assets.sh` — optional 720p transcodes into `assets/` (needs ffmpeg).
 - `assets/` — your videos (auto-discovered, first 24 alphabetically).
