@@ -81,7 +81,7 @@ html, body { width: 100vw; height: 100vh; margin: 0; background: #000; overflow:
 .celestial {
   position: absolute; width: 2.2vmin; height: 2.2vmin;
   min-width: 12px; min-height: 12px; border-radius: 50%;
-  pointer-events: none; z-index: 1; opacity: .72;   /* semi-transparent so the time reads through */
+  pointer-events: none; z-index: 0;   /* solid, and behind the text */
   transition: left 3s linear, top 3s linear, background 2s ease, box-shadow 2s ease;
 }
 /* music visualizer backdrop (animated by app.js while music plays).
