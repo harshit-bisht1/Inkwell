@@ -13,8 +13,9 @@
  *
  * Params: ?mode=halftone|panel &live=0|1 &panels=full|lite &dpr=2
  *         &dots=6 &angle=15 &ink=0|1 &color=0|1 &work=25 &break=5 &rpg=0|1 &hud=0|1
+ *         &np=0|1  (now-playing line + music visualizer; 0 = plain clock block)
  * Keys: h/p mode · m cycle · l live/static · g cycle MP gauge · i ink · c color
- *       · n/b next · r rpg · ? show/hide control bar (hidden by default)
+ *       · v now-playing/visualizer · n/b next · r rpg · ? show/hide control bar
  *       · space/0/. Pomodoro (when that gauge is showing)
  */
 
@@ -441,12 +442,22 @@ pollStats(); setInterval(pollStats, 5000);
 
 // "Now playing" (via the helper's /nowplaying.json — macOS media info).
 // Hidden until something is actually playing; shows "♪ Title — Artist".
+// The whole feature (song line + bar visualizer) toggles with `v` / ?np=0|1;
+// off = a plain clock block.
+let npOn = (params.get("np") ?? saved("np", 1)) != 0;
+function setNp(on) {
+  npOn = on; save("np", on ? 1 : 0);
+  const b = $("#npToggle"); if (b) b.classList.toggle("active", on);
+  if (on) pollNowPlaying();                     // refresh immediately when re-enabled
+  else renderNowPlaying();                      // hide the line + stop the visualizer
+}
 let nowPlaying = null;
 async function pollNowPlaying() {
+  if (!npOn) return;                            // feature off → skip the nowplaying-cli spawn
   try { const r = await fetch("nowplaying.json", { cache: "no-store" }); if (r.ok) { nowPlaying = await r.json(); renderNowPlaying(); } } catch {}
 }
 function renderNowPlaying() {
-  const on = !!(nowPlaying && nowPlaying.playing && nowPlaying.title);
+  const on = npOn && !!(nowPlaying && nowPlaying.playing && nowPlaying.title);
   setAll(".st-now", (e) => (e.hidden = !on));
   if (on) setAll(".np-txt", (e) => (e.textContent = nowPlaying.title + (nowPlaying.artist ? " — " + nowPlaying.artist : "")));
   refreshViz();                                // swell the bar visualizer while playing (battery permitting)
@@ -458,7 +469,7 @@ function currentBattery() {
   return null;                                 // unknown → don't restrict
 }
 function vizBatteryOk() { const b = currentBattery(); return !b || b.charging || b.level >= 50; }
-function refreshViz() { setViz(!!(nowPlaying && nowPlaying.playing && nowPlaying.title) && vizBatteryOk()); }
+function refreshViz() { setViz(npOn && !!(nowPlaying && nowPlaying.playing && nowPlaying.title) && vizBatteryOk()); }
 pollNowPlaying(); setInterval(pollNowPlaying, 5000);
 
 // MP cycles through these passive analytics with one key (app default: ram).
@@ -581,6 +592,7 @@ addEventListener("keydown", (e) => {
   else if (e.key === "c") setColor(!P.color);
   else if (e.key === "r") setRPG(!rpgOn);
   else if (e.key === "g") cycleGauge();                     // cycle the MP analytic
+  else if (e.key === "v") setNp(!npOn);                      // now-playing + visualizer on/off
   else if (e.key === "?" || e.key === "/") setHud(!hudOn);   // show/hide the control bar
   else if (e.key === "n") nextVideo(1);
   else if (e.key === "b") nextVideo(-1);
@@ -614,6 +626,7 @@ $("#inkToggle").addEventListener("change", (e) => setInk(e.target.checked));
 $("#satToggle").checked = P.color;
 $("#satToggle").addEventListener("change", (e) => setColor(e.target.checked));
 if ($("#liveToggle")) $("#liveToggle").addEventListener("click", () => setLive(!live));
+if ($("#npToggle")) $("#npToggle").addEventListener("click", () => setNp(!npOn));
 $("#pomoToggle").addEventListener("click", pomoToggle);
 $("#pomoReset").addEventListener("click", pomoReset);
 
@@ -646,4 +659,5 @@ async function discover() {
   setRPG(rpgOn);
   setLive(live);
   setHud(hudOn);
+  setNp(npOn);
 })();

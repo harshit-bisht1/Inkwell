@@ -125,11 +125,25 @@ so you rarely need the bar at all.
 URL params (reliable in Plash): `mode=halftone|panel`, `live=0|1`, `panels=full|lite`,
 `first=<text>` (pin the first clip whose filename contains this), `dpr=2`,
 `video=<url>`, `dots=3..16`, `angle=15`, `ink=0|1`, `color=0|1`, `work=25`,
-`break=5`, `rpg=0|1`, `hud=0|1` (start with the control bar shown).
+`break=5`, `rpg=0|1`, `hud=0|1` (start with the control bar shown),
+`np=0|1` (now-playing line + music visualizer; `0` = plain clock block).
+
+**Now playing + visualizer, on or off.** The song line and the bar visualizer are
+one toggle — press **v** (or the **♪ Viz** button in the hidden control bar), or pin
+it in the URL. Add the **same `first=<your-clip>`** to both so your chosen default
+wallpaper shows either way (`first` matches part of a filename in `assets/`):
+
+```
+http://localhost:8787/index.html?mode=halftone&live=0&first=ultra-instinct-goku&np=1   # song line + bar visualizer
+http://localhost:8787/index.html?mode=halftone&live=0&first=ultra-instinct-goku&np=0   # plain clock block, no song / no bars
+```
+
+(Swap `ultra-instinct-goku` for any part of a filename in `assets/` to pin a
+different default wallpaper — keep it the same in both URLs.)
 
 Because Plash remembers your last state, the URL is how you pin a fixed default —
-e.g. always open on a static Goku halftone:
-`…/index.html?mode=halftone&live=0&first=ultra-instinct-goku`
+e.g. always open on a static Goku halftone with a plain clock:
+`…/index.html?mode=halftone&live=0&first=ultra-instinct-goku&np=0`
 
 Hover for a control bar, or use keys:
 
@@ -142,6 +156,7 @@ Hover for a control bar, or use keys:
 | c     | color / B&W               |
 | r     | status bar on/off         |
 | g     | cycle the MP gauge (RAM ↔ Pomodoro ↔ …) |
+| v     | now-playing line + visualizer on/off (off = plain clock) |
 | ?     | show / hide the control bar (hidden by default) |
 | n/b   | next / previous wallpaper (panel mode rolls the whole set) |
 | space | Pomodoro start / pause *(only when the Pomodoro gauge is showing)* |
